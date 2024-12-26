@@ -28,7 +28,7 @@ def buscar_cep(event=None):
 root = tk.Tk()
 root.title("Consulta de CEP")
 
-root.configure(bg="#f0f0f0")  # Cor de fundo da janela
+root.configure(bg="#f0f0f0")
 
 style = ttk.Style()
 style.configure('TLabel', font=('Arial', 16), foreground='#333')
