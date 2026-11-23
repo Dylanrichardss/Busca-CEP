@@ -1,0 +1,69 @@
+NOME DA TABELA NO POWER BI: Prazo por parcela
+(use exatamente esse nome, com esses acentos e espacos, senao as medidas nao acham)
+
+SQL:
+
+SELECT
+    A.TK_DATA,
+    CAST(LEFT(CAST(A.TK_DATA AS CHAR), 6) AS UNSIGNED) AS ANOMES,
+    A.TK_ESTABELECIMENTO,
+    EC.CNPJ_PARCEIRO,
+    A.TIPOANTECIPACAO,
+    CASE
+        WHEN A.NUMERO_PARCELA <= 1              THEN 'à vista'
+        WHEN A.NUMERO_PARCELA BETWEEN 2  AND 6  THEN '2 a 6'
+        WHEN A.NUMERO_PARCELA BETWEEN 7  AND 12 THEN '7 a 12'
+        WHEN A.NUMERO_PARCELA BETWEEN 13 AND 18 THEN '13 a 18'
+        ELSE '19 a 21'
+    END AS FAIXA_PARCELAS,
+    CASE
+        WHEN A.NUMERO_PARCELA <= 1              THEN 1
+        WHEN A.NUMERO_PARCELA BETWEEN 2  AND 6  THEN 2
+        WHEN A.NUMERO_PARCELA BETWEEN 7  AND 12 THEN 3
+        WHEN A.NUMERO_PARCELA BETWEEN 13 AND 18 THEN 4
+        ELSE 5
+    END AS FAIXA_ORDEM,
+    SUM(A.VALOR)                            AS VGA,
+    SUM(A.VALOR * A.NUMERO_PARCELA * 30)    AS VGA_X_PRAZO_DISPONIVEL,
+    SUM(A.VALOR * DATEDIFF(STR_TO_DATE(V.DT_VENC_BAN, '%d/%m/%Y'),
+                           STR_TO_DATE(CAST(A.TK_DATA AS CHAR), '%Y%m%d')))
+                                            AS VGA_X_PRAZO_REALIZADO
+FROM BI.DW_FT_TRANSACAO_AGILLI A
+INNER JOIN BI.DW_FT_TRANSACAO_AGILLI V
+        ON V.NSU_TRANSACAO  = A.NSU_TRANSACAO
+       AND V.NUMERO_PARCELA = A.NUMERO_PARCELA
+       AND V.FLAG = 3
+       AND V.VENDA_ESTORNADA = 'N'
+INNER JOIN BI.DW_DM_ESTABELECIMENTO EC
+        ON EC.TK_ESTABELECIMENTO = A.TK_ESTABELECIMENTO
+WHERE A.FLAG = 2
+  AND A.VENDA_ESTORNADA = 'N'
+  AND A.TK_DATA >= '20260101'
+  AND A.TK_DATA <  DATE_FORMAT(CURDATE(), '%Y%m%d')
+GROUP BY
+    A.TK_DATA, ANOMES, A.TK_ESTABELECIMENTO, EC.CNPJ_PARCEIRO,
+    A.TIPOANTECIPACAO, FAIXA_PARCELAS, FAIXA_ORDEM;
+
+
+DEPOIS DE CARREGAR, FAZER 2 COISAS NO POWER BI:
+
+1) Ordenar a faixa:
+   clique na coluna FAIXA_PARCELAS > guia Ferramentas de Coluna >
+   Classificar por coluna > FAIXA_ORDEM.
+
+2) Conferir a relacao com Parceiros:
+   na Exibicao de modelo, veja se existe a linha entre
+   'Prazo por parcela'[CNPJ_PARCEIRO] e Parceiros[CNPJ_PARCEIRO].
+   O Power BI costuma criar sozinha. Se nao criar, crie:
+   cardinalidade muitos para um, direcao do filtro cruzado Unica,
+   de 'Prazo por parcela' para Parceiros.
+
+
+CONFERENCIA ANTES DE SEGUIR (compare com o Excel, mes de julho):
+   Disponivel ponderado por faixa = VGA_X_PRAZO_DISPONIVEL / VGA
+   a vista   30,00
+   2 a 6    112,72
+   7 a 12   299,13
+   13 a 18  501,71
+   19 a 21  624,96
+   Se bater, esta certo. Se nao bater, me avise antes de usar.
